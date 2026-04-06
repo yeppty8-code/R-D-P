@@ -1,22 +1,27 @@
-name: Windows-10-AnyDesk
+name: Windows-10-AnyDesk-Fix
 on: workflow_dispatch
 
 jobs:
   build:
     runs-on: windows-latest
     steps:
-    - name: Setup AnyDesk
+    - name: Install and Configure AnyDesk
       shell: powershell
       run: |
         # 1. Download AnyDesk
         curl.exe -L -o anydesk.exe https://download.anydesk.com/AnyDesk.exe
         
-        # 2. Set the password for unattended access
-        # This sets the password to: MyRobloxBot123!
-        echo "MyRobloxBot123!" | ./anydesk.exe --set-password
+        # 2. Install AnyDesk Silently
+        ./anydesk.exe --install "C:\Program Files (x86)\AnyDesk" --start-with-win --silent
         
-        # 3. Get the AnyDesk ID
-        ./anydesk.exe --get-id | Out-File -FilePath "id.txt"
+        # 3. Set Password for Unattended Access
+        echo "MyRobloxBot123!" | & "C:\Program Files (x86)\AnyDesk\AnyDesk.exe" --set-password
+        
+        # 4. Give the network a moment to connect
+        Start-Sleep -Seconds 20
+        
+        # 5. Get the ID
+        & "C:\Program Files (x86)\AnyDesk\AnyDesk.exe" --get-id | Out-File -FilePath "id.txt"
         $ID = Get-Content "id.txt"
         
         Write-Host "------------------------------------------------"
@@ -27,8 +32,8 @@ jobs:
     - name: Keep Alive
       shell: powershell
       run: |
-        # Run AnyDesk in the background
-        Start-Process ./anydesk.exe
+        # Ensure the service is running
+        Start-Service -Name "AnyDesk" -ErrorAction SilentlyContinue
         
-        # Keep the VM running for 6 hours
+        # Keep VM alive for 6 hours
         $i = 0; while($i -le 360) { Start-Sleep -Seconds 60; $i++ }

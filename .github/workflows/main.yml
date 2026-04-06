@@ -1,42 +1,34 @@
-name: Windows-10-VM
+name: Windows-10-AnyDesk
 on: workflow_dispatch
 
 jobs:
   build:
     runs-on: windows-latest
     steps:
-    - name: Create RDP User and Enable Remote Desktop
+    - name: Setup AnyDesk
       shell: powershell
       run: |
-        # 1. Enable RDP in the Registry
-        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
-        Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+        # 1. Download AnyDesk
+        curl.exe -L -o anydesk.exe https://download.anydesk.com/AnyDesk.exe
         
-        # 2. Create the 'runneradmin' user manually
-        $Password = ConvertTo-SecureString "MyRobloxBot123!" -AsPlainText -Force
-        try {
-            New-LocalUser "runneradmin" -Password $Password -Description "RDP User" -ErrorAction Stop
-            Write-Host "User 'runneradmin' created successfully."
-        } catch {
-            Write-Host "User already exists, updating password instead..."
-            $user = Get-LocalUser -Name "runneradmin"
-            $user | Set-LocalUser -Password $Password
-        }
+        # 2. Set the password for unattended access
+        # This sets the password to: MyRobloxBot123!
+        echo "MyRobloxBot123!" | ./anydesk.exe --set-password
         
-        # 3. Add user to Administrators and Remote Desktop groups
-        Add-LocalGroupMember -Group "Administrators" -Member "runneradmin" -ErrorAction SilentlyContinue
-        Add-LocalGroupMember -Group "Remote Desktop Users" -Member "runneradmin" -ErrorAction SilentlyContinue
+        # 3. Get the AnyDesk ID
+        ./anydesk.exe --get-id | Out-File -FilePath "id.txt"
+        $ID = Get-Content "id.txt"
+        
+        Write-Host "------------------------------------------------"
+        Write-Host "YOUR ANYDESK ID IS: $ID"
+        Write-Host "PASSWORD IS: MyRobloxBot123!"
+        Write-Host "------------------------------------------------"
 
-    - name: Start Cloudflare Tunnel
+    - name: Keep Alive
       shell: powershell
       run: |
-        # Download Cloudflared
-        curl.exe -L -o cloudflared.exe https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe
+        # Run AnyDesk in the background
+        Start-Process ./anydesk.exe
         
-        # Start tunnel
-        Start-Process ./cloudflared.exe -ArgumentList "tunnel --url rdp://localhost:3389"
-        
-        Write-Host "Wait 30 seconds, then check logs for the .trycloudflare.com link."
-        
-        # Keep VM alive for 6 hours
+        # Keep the VM running for 6 hours
         $i = 0; while($i -le 360) { Start-Sleep -Seconds 60; $i++ }

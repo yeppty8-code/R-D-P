@@ -5,31 +5,38 @@ jobs:
   build:
     runs-on: windows-latest
     steps:
-    - name: Enable RDP & User
+    - name: Create RDP User and Enable Remote Desktop
       shell: powershell
       run: |
-        # 1. Open the Firewall and Registry for RDP
+        # 1. Enable RDP in the Registry
         Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
         Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
         
-        # 2. Set the RDP Password
+        # 2. Create the 'runneradmin' user manually
         $Password = ConvertTo-SecureString "MyRobloxBot123!" -AsPlainText -Force
-        Set-LocalUser -Name "runneradmin" -Password $Password
-        Write-Host "Success: VM is ready for connection."
+        try {
+            New-LocalUser "runneradmin" -Password $Password -Description "RDP User" -ErrorAction Stop
+            Write-Host "User 'runneradmin' created successfully."
+        } catch {
+            Write-Host "User already exists, updating password instead..."
+            $user = Get-LocalUser -Name "runneradmin"
+            $user | Set-LocalUser -Password $Password
+        }
+        
+        # 3. Add user to Administrators and Remote Desktop groups
+        Add-LocalGroupMember -Group "Administrators" -Member "runneradmin" -ErrorAction SilentlyContinue
+        Add-LocalGroupMember -Group "Remote Desktop Users" -Member "runneradmin" -ErrorAction SilentlyContinue
 
     - name: Start Cloudflare Tunnel
       shell: powershell
       run: |
-        # 1. Get the Cloudflare tool
+        # Download Cloudflared
         curl.exe -L -o cloudflared.exe https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe
         
-        # 2. Run the tunnel in the background
+        # Start tunnel
         Start-Process ./cloudflared.exe -ArgumentList "tunnel --url rdp://localhost:3389"
         
-        Write-Host "------------------------------------------------------------"
-        Write-Host "WAIT 30 SECONDS THEN CHECK THE LOGS BELOW FOR YOUR LINK"
-        Write-Host "ENDING IN .trycloudflare.com"
-        Write-Host "------------------------------------------------------------"
+        Write-Host "Wait 30 seconds, then check logs for the .trycloudflare.com link."
         
-        # 3. Keep the VM running for 6 hours
+        # Keep VM alive for 6 hours
         $i = 0; while($i -le 360) { Start-Sleep -Seconds 60; $i++ }

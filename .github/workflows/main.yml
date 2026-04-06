@@ -1,0 +1,35 @@
+name: Windows-10-VM
+on: workflow_dispatch
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+    - name: Enable RDP & User
+      shell: powershell
+      run: |
+        # 1. Open the Firewall and Registry for RDP
+        Set-ItemProperty -Path 'HKLM:\System\CurrentControlSet\Control\Terminal Server' -Name "fDenyTSConnections" -Value 0
+        Enable-NetFirewallRule -DisplayGroup "Remote Desktop"
+        
+        # 2. Set the RDP Password
+        $Password = ConvertTo-SecureString "MyRobloxBot123!" -AsPlainText -Force
+        Set-LocalUser -Name "runneradmin" -Password $Password
+        Write-Host "Success: VM is ready for connection."
+
+    - name: Start Cloudflare Tunnel
+      shell: powershell
+      run: |
+        # 1. Get the Cloudflare tool
+        curl.exe -L -o cloudflared.exe https://github.com/cloudflare/cloudflared/releases/latest/download/cloudflared-windows-amd64.exe
+        
+        # 2. Run the tunnel in the background
+        Start-Process ./cloudflared.exe -ArgumentList "tunnel --url rdp://localhost:3389"
+        
+        Write-Host "------------------------------------------------------------"
+        Write-Host "WAIT 30 SECONDS THEN CHECK THE LOGS BELOW FOR YOUR LINK"
+        Write-Host "ENDING IN .trycloudflare.com"
+        Write-Host "------------------------------------------------------------"
+        
+        # 3. Keep the VM running for 6 hours
+        $i = 0; while($i -le 360) { Start-Sleep -Seconds 60; $i++ }
